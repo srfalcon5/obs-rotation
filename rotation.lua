@@ -3,20 +3,27 @@ group = ""
 end_h = 0
 end_m = 0
 interval = 0
+last_i = 0
 
 function shuffle()
-	local srcs = obs_sceneitem_group_enum_items(group)
-	seed = math.randomseed(os.time())
-	n = math.random()
-	for i, res do
-		if i = n then
+	local g = obs.obs_group_or_scene_from_source(obs.obs_get_source_by_name(group))
+	local srcs = obs.obs_scene_enum_items(g)
+	if not srcs then error("Provided group does not have any children. L10") end
+	local n = 1
+	repeat -- we repeat until a different number than the last number is found.
+		math.randomseed(os.time())
+		n = math.random(1,len(srcs))
+	until n ~= last_i
+	print(string.format("Making item %s in group visible.", n))
+	for i, res in ipairs(srcs) do
+		if i == n then
 			obs.obs_sceneitem_set_visible(res, true)
+			obs.obs_sceneitem_release(src)
 		else
 			obs.obs_sceneitem_set_visible(res, false)
 		end
 	end
-
-	obs.obs_sceneitem_release(srcs)
+	last_i = i
 end
 
 function t_callback()
@@ -25,6 +32,12 @@ function t_callback()
 		obs.remove_current_callback()
 	end
 	shuffle()
+end
+
+function len(T)
+	local i = 0
+	for _ in pairs(T) do i = i+1 end
+	return i
 end
 
 -- Derived from https://github.com/srfalcon5/obs-countdown/blob/main/countdown.lua#L37-L46
@@ -46,7 +59,7 @@ function script_properties()
 	obs.obs_properties_add_int(props, "interval", "Interval (in seconds)", 0, 3600, 1)
 	obs.obs_properties_add_int(props, "end_h", "Ending hour", 0, 23, 1)
 	obs.obs_properties_add_int(props, "end_m", "Ending minute", 0, 59, 1)
-	obs.obs_properties_add_list(props, "group", "Group for rotation", obs.OBS_COMBO_TYPE_EDITABLE, obs.OBS_COMBO_FORMAT_STRING)
+	local p = obs.obs_properties_add_list(props, "group", "Group for rotation", obs.OBS_COMBO_TYPE_EDITABLE, obs.OBS_COMBO_FORMAT_STRING)
 	local srcs = obs.obs_enum_sources()
 	if srcs ~= nil then
 		for _, src in ipairs(srcs) do
@@ -57,6 +70,7 @@ function script_properties()
 			end
 		end
 	end
+	print("Rotated images")
 	obs.source_list_release(srcs)
 	return props
 end
@@ -72,7 +86,8 @@ function script_update(settings)
 	if src ~= nil then
 		local active = obs.obs_source_active(src)
 		obs.obs_source_release(src)
-		obs.timer_add(t_callback, interval)
+		i = interval*1000
+		obs.timer_add(t_callback, i)
 		print("Updated settings successfully.")
 	else
 		error("src_name in use is nil. LXX")
